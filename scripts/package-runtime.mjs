@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { homedir, platform, arch } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -78,6 +78,61 @@ function requiredFiles(root) {
   ];
 }
 
+function ensureWindowsCacheLibrary(root, name, expectedFileName, installCandidates) {
+  const cacheDir = join(root, "cache", name);
+  const cachePath = join(cacheDir, expectedFileName);
+  const installLibDir = join(root, name, "lib");
+  const installPath = join(installLibDir, expectedFileName);
+
+  if (existsSync(cachePath)) return;
+
+  const recursiveCandidates = existsSync(join(root, name)) ? listFiles(join(root, name)) : [];
+  const candidatePaths = [
+    ...installCandidates.map((candidate) => join(installLibDir, candidate)),
+    ...recursiveCandidates.filter((path) => {
+      const fileName = basename(path).toLowerCase();
+      return fileName.endsWith(".lib") && fileName.includes(name);
+    }),
+  ];
+  const sourcePath = candidatePaths.find((path) => existsSync(path));
+
+  if (!sourcePath) return;
+
+  mkdirSync(cacheDir, { recursive: true });
+  cpSync(sourcePath, cachePath);
+
+  if (!existsSync(installPath)) {
+    mkdirSync(installLibDir, { recursive: true });
+    cpSync(sourcePath, installPath);
+  }
+}
+
+function ensureWindowsCacheLibraries(root) {
+  if (process.platform !== "win32") return;
+
+  ensureWindowsCacheLibrary(root, "leptonica", "leptonica.lib", [
+    "leptonica.lib",
+    "libleptonica.lib",
+    "leptonica-static.lib",
+    "leptonica-1.84.1.lib",
+  ]);
+  ensureWindowsCacheLibrary(root, "tesseract", "tesseract.lib", [
+    "tesseract.lib",
+    "libtesseract.lib",
+    "tesseract-static.lib",
+    "tesseract53.lib",
+    "tesseract54.lib",
+  ]);
+}
+
+function summarizeLibraries(root) {
+  return listFiles(root)
+    .filter((path) => basename(path).toLowerCase().endsWith(".lib"))
+    .map((path) => relative(root, path).replaceAll("\\", "/"))
+    .slice(0, 40)
+    .join(", ");
+}
+
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     stdio: "inherit",
@@ -100,9 +155,12 @@ if (expectedKey && expectedKey !== key) {
 
 run("cargo", ["check", "--manifest-path", join(repoRoot, "builder", "Cargo.toml")]);
 
+ensureWindowsCacheLibraries(cacheRoot);
+
 for (const file of requiredFiles(cacheRoot)) {
   if (!existsSync(file)) {
-    throw new Error(`Expected OCR cache file was not produced: ${file}`);
+    const availableLibraries = process.platform === "win32" ? ` Available .lib files: ${summarizeLibraries(cacheRoot)}` : "";
+    throw new Error(`Expected OCR cache file was not produced: ${file}.${availableLibraries}`);
   }
 }
 
