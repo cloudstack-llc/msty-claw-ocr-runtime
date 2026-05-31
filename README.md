@@ -26,6 +26,23 @@ Each archive contains:
 - `tessdata/tur.traineddata`
 - `manifest.json`
 
+## QA Test Data
+
+Release `v0.1.0` also includes a PDF parse fixture archive for QA:
+
+- [`msty-claw-pdf-parse-test-pdfs.zip`](https://github.com/cloudstack-llc/msty-claw-ocr-runtime/releases/download/v0.1.0/msty-claw-pdf-parse-test-pdfs.zip)
+- [`msty-claw-pdf-parse-test-pdfs.zip.sha256`](https://github.com/cloudstack-llc/msty-claw-ocr-runtime/releases/download/v0.1.0/msty-claw-pdf-parse-test-pdfs.zip.sha256)
+
+The archive contains generated smoke-test PDFs plus open-source PDFs from
+OCRmyPDF, Apache PDFBox, libHaru, and Wikimedia Commons. It includes a README,
+source notes, and per-file checksums for QA handoff.
+
+After downloading both files, verify the archive with:
+
+```sh
+shasum -a 256 -c msty-claw-pdf-parse-test-pdfs.zip.sha256
+```
+
 ## Compatibility
 
 These assets are versioned with the Rust crates and native library versions
