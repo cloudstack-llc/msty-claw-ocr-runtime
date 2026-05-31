@@ -1,0 +1,8 @@
+[package]
+name = "msty-claw-ocr-runtime-builder"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+liteparse = { version = "2.0.4", default-features = false, features = ["tesseract"] }
