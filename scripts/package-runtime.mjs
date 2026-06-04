@@ -17,6 +17,19 @@ const versions = {
   tessdata: "tessdata_best",
 };
 
+const windowsReleaseLibraries = [
+  join("leptonica", "lib", "leptonica-1.84.1.lib"),
+  join("tesseract", "lib", "tesseract53.lib"),
+];
+
+const windowsDebugRuntimeFiles = [
+  join("leptonica", "lib", "leptonica-1.84.1d.lib"),
+  join("leptonica", "lib", "cmake", "leptonica", "LeptonicaTargets-debug.cmake"),
+  join("leptonica", "lib", "pkgconfig", "lept_Debug.pc"),
+  join("tesseract", "lib", "tesseract53d.lib"),
+  join("tesseract", "lib", "cmake", "tesseract", "TesseractTargets-debug.cmake"),
+];
+
 function runtimeKey() {
   const os = platform();
   const cpu = arch();
@@ -66,6 +79,7 @@ function requiredFiles(root) {
     return [
       join(root, "cache", "leptonica", "leptonica.lib"),
       join(root, "cache", "tesseract", "tesseract.lib"),
+      ...windowsReleaseLibraries.map((file) => join(root, file)),
       join(root, "tessdata", "eng.traineddata"),
       join(root, "tessdata", "tur.traineddata"),
     ];
@@ -91,7 +105,7 @@ function ensureWindowsCacheLibrary(root, name, expectedFileName, installCandidat
     ...installCandidates.map((candidate) => join(installLibDir, candidate)),
     ...recursiveCandidates.filter((path) => {
       const fileName = basename(path).toLowerCase();
-      return fileName.endsWith(".lib") && fileName.includes(name);
+      return fileName.endsWith(".lib") && fileName.includes(name) && !fileName.endsWith("d.lib");
     }),
   ];
   const sourcePath = candidatePaths.find((path) => existsSync(path));
@@ -125,6 +139,20 @@ function ensureWindowsCacheLibraries(root) {
   ]);
 }
 
+function rejectWindowsDebugLibraries(root) {
+  if (process.platform !== "win32") return;
+
+  const debugRuntimeFiles = windowsDebugRuntimeFiles
+    .map((file) => join(root, file))
+    .filter((file) => existsSync(file));
+
+  if (debugRuntimeFiles.length > 0) {
+    throw new Error(
+      `Windows OCR runtime contains debug build files: ${debugRuntimeFiles.join(", ")}. Build the runtime with Cargo --release.`,
+    );
+  }
+}
+
 function summarizeLibraries(root) {
   return listFiles(root)
     .filter((path) => basename(path).toLowerCase().endsWith(".lib"))
@@ -153,8 +181,9 @@ if (expectedKey && expectedKey !== key) {
   throw new Error(`Runner produced ${key}, but the workflow expected ${expectedKey}`);
 }
 
-run("cargo", ["check", "--manifest-path", join(repoRoot, "builder", "Cargo.toml")]);
+run("cargo", ["check", "--release", "--manifest-path", join(repoRoot, "builder", "Cargo.toml")]);
 
+rejectWindowsDebugLibraries(cacheRoot);
 ensureWindowsCacheLibraries(cacheRoot);
 
 for (const file of requiredFiles(cacheRoot)) {
