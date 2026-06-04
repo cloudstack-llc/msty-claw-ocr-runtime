@@ -125,18 +125,31 @@ function ensureWindowsCacheLibraries(root) {
   if (process.platform !== "win32") return;
 
   ensureWindowsCacheLibrary(root, "leptonica", "leptonica.lib", [
+    "leptonica-1.84.1.lib",
     "leptonica.lib",
     "libleptonica.lib",
     "leptonica-static.lib",
-    "leptonica-1.84.1.lib",
   ]);
   ensureWindowsCacheLibrary(root, "tesseract", "tesseract.lib", [
+    "tesseract53.lib",
+    "tesseract54.lib",
     "tesseract.lib",
     "libtesseract.lib",
     "tesseract-static.lib",
-    "tesseract53.lib",
-    "tesseract54.lib",
   ]);
+}
+
+function clearWindowsNativeBuildArtifacts(root) {
+  if (process.platform !== "win32") return;
+
+  for (const dir of [
+    join(root, "cache", "leptonica"),
+    join(root, "cache", "tesseract"),
+    join(root, "leptonica", "lib"),
+    join(root, "tesseract", "lib"),
+  ]) {
+    rmSync(dir, { force: true, recursive: true });
+  }
 }
 
 function rejectWindowsDebugLibraries(root) {
@@ -181,7 +194,10 @@ if (expectedKey && expectedKey !== key) {
   throw new Error(`Runner produced ${key}, but the workflow expected ${expectedKey}`);
 }
 
-run("cargo", ["check", "--release", "--manifest-path", join(repoRoot, "builder", "Cargo.toml")]);
+clearWindowsNativeBuildArtifacts(cacheRoot);
+run("cargo", ["check", "--release", "--manifest-path", join(repoRoot, "builder", "Cargo.toml")], {
+  env: process.platform === "win32" ? { ...process.env, CARGO_CLEAN: "1" } : process.env,
+});
 
 rejectWindowsDebugLibraries(cacheRoot);
 ensureWindowsCacheLibraries(cacheRoot);
